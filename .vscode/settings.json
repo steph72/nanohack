@@ -1,0 +1,20 @@
+{
+    "python.formatting.provider": "autopep8",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "files.associations": {
+        "plus4.h": "c",
+        "cbm264.h": "c",
+        "cx16.h": "c",
+        "wolftypes.h": "c",
+        "io.h": "c",
+        "utils.h": "c",
+        "levels.h": "c",
+        "time.h": "c",
+        "6502.h": "c",
+        "highscore.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "conio.h": "c"
+    }
+}
