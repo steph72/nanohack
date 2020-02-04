@@ -2,11 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <cx16.h>
+#include <cbm.h>
+#include <unistd.h>
 
 const int xDungeonSize = 80;
 const int yDungeonSize = 60;
-const int minRoomSize = 8;
+const int minFrameSize = 3;
 
 typedef unsigned char byte;
 
@@ -16,133 +17,137 @@ typedef enum
     dir_vertical
 } direction;
 
-typedef struct _room
+typedef struct _frame
 {
     byte x0, y0, x1, y1;
-    struct _room *subRoom1;
-    struct _room *subRoom2;
-} room;
+    struct _frame *subframe1;
+    struct _frame *subframe2;
+} frame;
 
-void dumpRoom(room *aRoom)
+void dumpFrame(frame *aFrame)
 {
     byte i;
-    for (i = aRoom->x0; i < aRoom->x1; ++i)
+    revers(1);
+    for (i = aFrame->x0; i <= aFrame->x1; ++i)
     {
-        cputcxy(i, aRoom->y0, '*');
-        cputcxy(i, aRoom->y1, '*');
+        cputcxy(i, aFrame->y0, ' ');
+        cputcxy(i, aFrame->y1, ' ');
     }
-    for (i = aRoom->y0; i < aRoom->y1; ++i)
+    for (i = aFrame->y0; i <= aFrame->y1; ++i)
     {
-        cputcxy(aRoom->x0, i, '*');
-        cputcxy(aRoom->x1, i, '*');
+        cputcxy(aFrame->x0, i, ' ');
+        cputcxy(aFrame->x1, i, ' ');
     }
+    revers(0);
 }
 
-void dumpAllRooms(room *startRoom)
+void dumpAllFrames(frame *startFrame)
 {
-    if (!startRoom)
+    if (!startFrame)
     {
         return;
     }
-    if (startRoom->subRoom1 == NULL)
+    if (startFrame->subframe1 == NULL)
     {
-        dumpRoom(startRoom);
+        dumpFrame(startFrame);
     }
-    dumpAllRooms(startRoom->subRoom1);
-    dumpAllRooms(startRoom->subRoom2);
+    dumpAllFrames(startFrame->subframe1);
+    dumpAllFrames(startFrame->subframe2);
 }
 
-room *newRoom(byte x0, byte y0, byte x1, byte y1)
+frame *newFrame(byte x0, byte y0, byte x1, byte y1)
 {
-    room *aRoom;
-    aRoom = (room *)malloc(sizeof(room));
-    aRoom->x0 = x0;
-    aRoom->y0 = y0;
-    aRoom->x1 = x1;
-    aRoom->y1 = y1;
-    aRoom->subRoom1 = NULL;
-    aRoom->subRoom2 = NULL;
-    // printf("new room %d,%d,%d,%d at %x\n", x0, y0, x1, y1, aRoom);
-    return aRoom;
+    frame *aFrame;
+    aFrame = (frame *)malloc(sizeof(frame));
+    aFrame->x0 = x0;
+    aFrame->y0 = y0;
+    aFrame->x1 = x1;
+    aFrame->y1 = y1;
+    aFrame->subframe1 = NULL;
+    aFrame->subframe2 = NULL;
+    // printf("new frame %d,%d,%d,%d at %x\n", x0, y0, x1, y1, aFrame);
+    return aFrame;
 }
 
-byte isLeafRoom(room *aRoom)
+byte isLeaf(frame *aFrame)
 {
-    return (aRoom->subRoom1 == NULL && aRoom->subRoom2 == NULL);
+    return (aFrame->subframe1 == NULL && aFrame->subframe2 == NULL);
 }
 
-void splitRoom(room *aRoom)
+void splitFrame(frame *aFrame)
 {
     direction splitDir;
     byte splitPoint;
-    byte roomWidth;
-    byte roomHeight;
+    byte frameWidth;
+    byte frameHeight;
     int variance;
-    room *subroom1 = NULL;
-    room *subroom2 = NULL;
+    frame *subframe1 = NULL;
+    frame *subframe2 = NULL;
 
-    if (!aRoom)
+    if (!aFrame)
         return;
 
-    variance = minRoomSize/2;
+    variance = minFrameSize/2;
 
-    roomWidth = aRoom->x1 - aRoom->x0;
-    roomHeight = aRoom->y1 - aRoom->y0;
+    frameWidth = aFrame->x1 - aFrame->x0;
+    frameHeight = aFrame->y1 - aFrame->y0;
 
     splitDir = (rand() & 1) ? dir_horizontal : dir_vertical;
 
-    if ((splitDir == dir_horizontal) && roomWidth >= (3 * minRoomSize))
+    if ((splitDir == dir_horizontal) && frameWidth >= (3 * minFrameSize))
     {
-        splitPoint = aRoom->x0 + roomWidth / 2;
+        splitPoint = aFrame->x0 + frameWidth / 2;
         splitPoint += (-variance + rand() % ((variance*2)+1));
 
-        subroom1 = newRoom(aRoom->x0, aRoom->y0, splitPoint, aRoom->y1);
-        subroom2 = newRoom(splitPoint, aRoom->y0, aRoom->x1, aRoom->y1);
+        subframe1 = newFrame(aFrame->x0, aFrame->y0, splitPoint, aFrame->y1);
+        subframe2 = newFrame(splitPoint, aFrame->y0, aFrame->x1, aFrame->y1);
     }
-    else if ((splitDir == dir_vertical) && roomHeight >= (3 * minRoomSize))
+    else if ((splitDir == dir_vertical) && frameHeight >= (3 * minFrameSize))
     {
-        splitPoint = aRoom->y0 + roomHeight / 2;
+        splitPoint = aFrame->y0 + frameHeight / 2;
         splitPoint += (-variance + rand() % ((variance*2)+1));
 
-        subroom1 = newRoom(aRoom->x0, aRoom->y0, aRoom->x1, splitPoint);
-        subroom2 = newRoom(aRoom->x0, splitPoint, aRoom->x1, aRoom->y1);
+        subframe1 = newFrame(aFrame->x0, aFrame->y0, aFrame->x1, splitPoint);
+        subframe2 = newFrame(aFrame->x0, splitPoint, aFrame->x1, aFrame->y1);
     }
 
-    aRoom->subRoom1 = subroom1;
-    aRoom->subRoom2 = subroom2;
-    splitRoom(subroom1);
-    splitRoom(subroom2);
+    aFrame->subframe1 = subframe1;
+    aFrame->subframe2 = subframe2;
+    splitFrame(subframe1);
+    splitFrame(subframe2);
 }
 
-room *createRooms(void)
+frame *createFrames(void)
 {
-    room *startRoom;
-    startRoom = newRoom(0, 0, xDungeonSize - 1, yDungeonSize - 1);
-    splitRoom(startRoom);
-    return startRoom;
+    frame *startFrame;
+    startFrame = newFrame(0, 0, xDungeonSize - 1, yDungeonSize - 1);
+    splitFrame(startFrame);
+    return startFrame;
 }
 
-void freeRooms(room *aRoom)
+void deallocFrames(frame *aFrame)
 {
-    if (!aRoom)
+    if (!aFrame)
     {
         return;
     }
-    freeRooms(aRoom->subRoom1);
-    freeRooms(aRoom->subRoom2);
-    free(aRoom);
+    deallocFrames(aFrame->subframe1);
+    deallocFrames(aFrame->subframe2);
+    free(aFrame);
 }
 
 void main()
 {
-    room *aRoom = NULL;
+    frame *aFrame = NULL;
     textcolor(COLOR_GREEN);
     bgcolor(COLOR_BLACK);
+    bordercolor(COLOR_BLACK);
     do
     {
-        freeRooms(aRoom);
+        deallocFrames(aFrame);
         clrscr();
-        aRoom = createRooms();
-        dumpAllRooms(aRoom);
-    } while (cgetc() != 'q');
+        aFrame = createFrames();
+        dumpAllFrames(aFrame);
+        sleep(1);
+    } while (1);
 }
