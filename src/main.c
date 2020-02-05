@@ -4,13 +4,25 @@
 #include <stddef.h>
 #include <cbm.h>
 #include <unistd.h>
+#include <string.h>
+
+const int kErrNoRoomForDungeon = 0x10;
 
 const int xDungeonSize = 40;
 const int yDungeonSize = 25;
-const int dungeonMinFrameSize = 4;
-const int minDungeonRoomCount = 0x0d;
+const int dungeonMinFrameSize = 5;
+const int minDungeonRoomCount = 8;
 
+const char signs[] = {' ', '.', '#', 'X'};
 typedef unsigned char byte;
+
+typedef enum
+{
+    de_nothing,
+    de_floor,
+    de_wall,
+    de_rock
+} dungeonElement;
 
 typedef enum
 {
@@ -31,44 +43,18 @@ typedef struct _frame
     room *frameRoom;
 } frame;
 
-void dumpFrame(frame *aFrame)
+dungeonElement *gDungeon;
+
+void dumpDungeon()
 {
-    byte i;
-    room *theRoom;
-
-    theRoom = aFrame->frameRoom;
-
-    if (theRoom == NULL)
+    register byte x, y;
+    for (x = 0; x < xDungeonSize; ++x)
     {
-        return;
+        for (y = 0; y < yDungeonSize; ++y)
+        {
+            cputcxy(x, y, signs[gDungeon[x + (xDungeonSize * y)]]);
+        }
     }
-
-    revers(1);
-    for (i = theRoom->x0; i <= theRoom->x1; ++i)
-    {
-        cputcxy(i, theRoom->y0, '*');
-        cputcxy(i, theRoom->y1, '*');
-    }
-    for (i = theRoom->y0; i <= theRoom->y1; ++i)
-    {
-        cputcxy(theRoom->x0, i, '*');
-        cputcxy(theRoom->x1, i, '*');
-    }
-    revers(0);
-}
-
-void dumpAllFrames(frame *startFrame)
-{
-    if (!startFrame)
-    {
-        return;
-    }
-    if (startFrame->subframe1 == NULL)
-    {
-        dumpFrame(startFrame);
-    }
-    dumpAllFrames(startFrame->subframe1);
-    dumpAllFrames(startFrame->subframe2);
 }
 
 frame *newFrame(byte x0, byte y0, byte x1, byte y1)
@@ -82,10 +68,6 @@ frame *newFrame(byte x0, byte y0, byte x1, byte y1)
     aFrame->subframe1 = NULL;
     aFrame->subframe2 = NULL;
     aFrame->frameRoom = NULL;
-    // printf("new frame %d,%d,%d,%d at %x\n", x0, y0, x1, y1, aFrame);
-
-    gotoxy(0, 0);
-    cputhex16((int)aFrame);
     return aFrame;
 }
 
@@ -185,19 +167,34 @@ frame *createFrames(byte width, byte height, byte minFrameCount)
 void createRoomForFrame(frame *aFrame)
 {
     room *newRoom;
-    int frameWidth;
-    int frameHeight;
+    byte frameWidth;
+    byte frameHeight;
+    byte x, y;
 
     frameWidth = aFrame->x1 - aFrame->x0;
     frameHeight = aFrame->y1 - aFrame->y0;
 
     newRoom = (room *)malloc(sizeof(room));
-    newRoom->x0 = aFrame->x0 + (rand() % ((frameWidth / 2) - 1));
-    newRoom->y0 = aFrame->y0 + (rand() % ((frameHeight / 2) - 1));
-    newRoom->x1 = aFrame->x1 - (rand() % ((frameWidth / 2) - 1));
-    newRoom->y1 = aFrame->y1 - (rand() % ((frameHeight / 2) - 1));
+    newRoom->x0 = aFrame->x0 + 1 + (rand() % ((frameWidth / 2) - 1));
+    newRoom->y0 = aFrame->y0 + 1 + (rand() % ((frameHeight / 2) - 1));
+    newRoom->x1 = aFrame->x1 - 1 - (rand() % ((frameWidth / 2) - 1));
+    newRoom->y1 = aFrame->y1 - 1 - (rand() % ((frameHeight / 2) - 1));
     aFrame->frameRoom = newRoom;
 
+    for (x = newRoom->x0; x <= newRoom->x1; ++x)
+    {
+        for (y = newRoom->y0; y <= newRoom->y1; ++y)
+        {
+            if (x == newRoom->x0 || x == newRoom->x1 || y == newRoom->y0 || y == newRoom->y1)
+            {
+                gDungeon[x + (y * xDungeonSize)] = de_wall;
+            }
+            else
+            {
+                gDungeon[x + (y * xDungeonSize)] = de_floor;
+            }
+        }
+    }
 }
 
 void createRooms(frame *startFrame)
@@ -213,21 +210,38 @@ void createRooms(frame *startFrame)
     }
 }
 
+void initDungeon()
+{
+    gDungeon = (dungeonElement *)malloc(xDungeonSize * yDungeonSize * sizeof(dungeonElement));
+    if (!gDungeon)
+    {
+        exit(kErrNoRoomForDungeon);
+    }
+}
+
+void clearDungeon()
+{
+    bzero(gDungeon, xDungeonSize * yDungeonSize * sizeof(gDungeon));
+}
+
 void main()
 {
     frame *aFrame = NULL;
     textcolor(0x55);
-    bgcolor(COLOR_BLACK);
-    bordercolor(COLOR_BLACK);
+    bgcolor(0);
+    bordercolor(0);
     clrscr();
+    initDungeon();
     do
     {
         deallocFrames(aFrame);
         aFrame = createFrames(xDungeonSize, yDungeonSize, minDungeonRoomCount);
+        clearDungeon();
         createRooms(aFrame);
         clrscr();
-        dumpAllFrames(aFrame);
-        gotoxy(6, 0);
+        dumpDungeon();
+        //dumpAllFrames(aFrame);
+        gotoxy(0, 0);
         cputhex8(countLeafFrames(aFrame));
         sleep(1);
     } while (1);
