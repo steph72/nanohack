@@ -22,7 +22,6 @@ typedef struct
     int numRooms;
     int surfaceCount;
     dungeonElement *canvas;
-    room **roomList;
 } dungeonDescriptor;
 
 dungeonDescriptor *createDungeon(byte width,
