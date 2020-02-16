@@ -3,8 +3,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <conio.h>
+#include <stdio.h>
 
 #include "dungeon.h"
+
+// 5828
 
 const int kErrNoRoomForDungeon = 0x10;
 
@@ -14,6 +17,8 @@ int _gDungeonWidth;
 int _gDungeonHeight;
 int _gMinRooms;
 int _gMinRoomSize;
+dungeonElement *_gCanvas;
+
 
 typedef enum
 {
@@ -21,29 +26,33 @@ typedef enum
     dir_vertical
 } direction;
 
+typedef struct {
+    byte x0,y0,x1,y1;
+} rect;
+
 typedef struct _frame
 {
-    byte x0, y0, x1, y1;
+    rect frameRect;
+    rect roomRect;
     direction splitDir;
-    byte connected;
+    byte hasConnectedChildren;
     struct _frame *parent;
     struct _frame *subframe1;
     struct _frame *subframe2;
-    room *frameRoom;
+    // room *frameRoom;
 } frame;
 
 frame *newFrame(byte x0, byte y0, byte x1, byte y1)
 {
     frame *aFrame;
     aFrame = (frame *)malloc(sizeof(frame));
-    aFrame->x0 = x0;
-    aFrame->y0 = y0;
-    aFrame->x1 = x1;
-    aFrame->y1 = y1;
-    aFrame->connected = 0;
+    aFrame->frameRect.x0 = x0;
+    aFrame->frameRect.y0 = y0;
+    aFrame->frameRect.x1 = x1;
+    aFrame->frameRect.y1 = y1;
+    aFrame->hasConnectedChildren = 0;
     aFrame->subframe1 = NULL;
     aFrame->subframe2 = NULL;
-    aFrame->frameRoom = NULL;
     aFrame->parent = NULL;
     return aFrame;
 }
@@ -65,24 +74,24 @@ void splitFrame(frame *aFrame, byte minFrameSize)
 
     frameSizeThreshhold = (minFrameSize * 35) / 10;
 
-    frameWidth = aFrame->x1 - aFrame->x0;
-    frameHeight = aFrame->y1 - aFrame->y0;
+    frameWidth = aFrame->frameRect.x1 - aFrame->frameRect.x0;
+    frameHeight = aFrame->frameRect.y1 - aFrame->frameRect.y0;
 
     splitDir = (rand() & 1) ? dir_horizontal : dir_vertical;
     aFrame->splitDir = splitDir;
 
     if ((splitDir == dir_horizontal) && frameWidth >= frameSizeThreshhold)
     {
-        splitPoint = aFrame->x0 + minFrameSize + (rand() % (frameWidth - (minFrameSize * 2)));
-        subframe1 = newFrame(aFrame->x0, aFrame->y0, splitPoint, aFrame->y1);
-        subframe2 = newFrame(splitPoint, aFrame->y0, aFrame->x1, aFrame->y1);
+        splitPoint = aFrame->frameRect.x0 + minFrameSize + (rand() % (frameWidth - (minFrameSize * 2)));
+        subframe1 = newFrame(aFrame->frameRect.x0, aFrame->frameRect.y0, splitPoint, aFrame->frameRect.y1);
+        subframe2 = newFrame(splitPoint, aFrame->frameRect.y0, aFrame->frameRect.x1, aFrame->frameRect.y1);
     }
     else if ((splitDir == dir_vertical) && frameHeight >= frameSizeThreshhold)
     {
-        splitPoint = aFrame->y0 + minFrameSize + (rand() % (frameHeight - (minFrameSize * 2)));
+        splitPoint = aFrame->frameRect.y0 + minFrameSize + (rand() % (frameHeight - (minFrameSize * 2)));
 
-        subframe1 = newFrame(aFrame->x0, aFrame->y0, aFrame->x1, splitPoint);
-        subframe2 = newFrame(aFrame->x0, splitPoint, aFrame->x1, aFrame->y1);
+        subframe1 = newFrame(aFrame->frameRect.x0, aFrame->frameRect.y0, aFrame->frameRect.x1, splitPoint);
+        subframe2 = newFrame(aFrame->frameRect.x0, splitPoint, aFrame->frameRect.x1, aFrame->frameRect.y1);
     }
 
     if (subframe1)
@@ -104,10 +113,6 @@ void deallocFrames(frame *aFrame)
     }
     deallocFrames(aFrame->subframe1);
     deallocFrames(aFrame->subframe2);
-    if (aFrame->frameRoom)
-    {
-        free(aFrame->frameRoom);
-    }
     free(aFrame);
 }
 
@@ -146,22 +151,16 @@ frame *createFrames(byte width, byte height, byte minFrameCount, byte minFrameSi
 // returns number of floor spaces created
 int createRoomForFrame(frame *aFrame)
 {
-    room *newRoom;
     byte roomWidth;
     byte roomHeight;
     byte randomSize;
     byte x0, y0, x1, y1;
     int numSpaces = 0;
 
-    if (aFrame->frameRoom != NULL)
-    {
-        free(aFrame->frameRoom);
-    }
-
-    x0 = aFrame->x0;
-    y0 = aFrame->y0;
-    x1 = aFrame->x1;
-    y1 = aFrame->y1;
+    x0 = aFrame->frameRect.x0;
+    y0 = aFrame->frameRect.y0;
+    x1 = aFrame->frameRect.x1;
+    y1 = aFrame->frameRect.y1;
 
     x0 = (x0 == 0) ? x0 : x0 + 1;
     y0 = (y0 == 0) ? y0 : y0 + 1;
@@ -170,8 +169,6 @@ int createRoomForFrame(frame *aFrame)
 
     roomWidth = x1 - x0 - 2;
     roomHeight = y1 - y0 - 2;
-
-    newRoom = (room *)malloc(sizeof(room));
 
     if (roomWidth > (_gMinRoomSize + 2))
     {
@@ -187,11 +184,10 @@ int createRoomForFrame(frame *aFrame)
         y1 = y0 + randomSize;
     }
 
-    newRoom->x0 = x0;
-    newRoom->x1 = x1;
-    newRoom->y0 = y0;
-    newRoom->y1 = y1;
-    aFrame->frameRoom = newRoom;
+    aFrame->roomRect.x0 = x0;
+    aFrame->roomRect.x1 = x1;
+    aFrame->roomRect.y0 = y0;
+    aFrame->roomRect.y1 = y1;
 
     roomWidth = x1 - x0 - 2;
     roomHeight = y1 - y0 - 2;
@@ -200,63 +196,41 @@ int createRoomForFrame(frame *aFrame)
     return numSpaces;
 }
 
-void instantiateRoomInDungeon(room *aRoom, dungeonDescriptor *desc)
+void instantiateRoomInDungeon(frame *aFrame)
 {
     register byte x;
     register byte y;
     byte x0, x1, y0, y1;
-    dungeonElement *gDungeon;
-    byte dungeonWidth;
 
-    gDungeon = desc->canvas;
-    dungeonWidth = desc->width;
-    x0 = aRoom->x0;
-    y0 = aRoom->y0;
-    x1 = aRoom->x1;
-    y1 = aRoom->y1;
+    x0 = aFrame->roomRect.x0;
+    y0 = aFrame->roomRect.y0;
+    x1 = aFrame->roomRect.x1;
+    y1 = aFrame->roomRect.y1;
 
     for (x = x0; x <= x1; ++x)
     {
         for (y = y0; y <= y1; ++y)
         {
-            gDungeon[x + (y * dungeonWidth)] =
+            _gCanvas[x + (y * _gDungeonWidth)] =
                 ((x == x0 || x == x1 || y == y0 || y == y1)) ? de_wall : de_floor;
         }
     }
 }
 
-void instantiateRooms(frame *startFrame, dungeonDescriptor *ddesc)
+void instantiateRooms(frame *startFrame)
 {
     if (!startFrame)
     {
         return;
     }
-    if (startFrame->frameRoom)
+    if (isLeaf(startFrame))
     {
-        instantiateRoomInDungeon(startFrame->frameRoom, ddesc);
+        instantiateRoomInDungeon(startFrame);
     }
     else
     {
-        instantiateRooms(startFrame->subframe1, ddesc);
-        instantiateRooms(startFrame->subframe2, ddesc);
-    }
-}
-
-void connectRoomsForFrameUpwards(frame *aFrame, dungeonDescriptor *ddesc) {
-    if (aFrame->parent) {
-        // connnect two subframes and move on to parent
-        aFrame->parent->subframe1->connected = 1;
-        aFrame->parent->subframe2->connected = 1;
-        connectRoomsForFrameUpwards(aFrame->parent,ddesc);
-    }
-}
-
-void connectRooms(frame *startFrame, dungeonDescriptor *ddesc) {
-    if (isLeaf(startFrame) && (startFrame->connected==0)) {
-        connectRoomsForFrameUpwards(startFrame,ddesc);
-    } else {
-        connectRooms(startFrame->subframe1,ddesc);
-        connectRooms(startFrame->subframe2,ddesc);
+        instantiateRooms(startFrame->subframe1);
+        instantiateRooms(startFrame->subframe2);
     }
 }
 
@@ -274,6 +248,81 @@ int createRooms(frame *startFrame)
         numSpaces += createRooms(startFrame->subframe2);
     }
     return numSpaces;
+}
+
+byte midX(rect *aRect) {
+    return aRect->x0 + ((aRect->x1 - aRect->x0)/2);
+}
+
+byte midY(rect *aRect) {
+    return aRect->y0 + ((aRect->y1 - aRect->y0)/2);
+}
+
+
+void connectRects(rect *rect1, rect *rect2) {
+
+    byte xc1,yc1,xc2,yc2;
+
+    xc1 = midX(rect1);
+    yc1 = midY(rect1);
+    xc2 = midX(rect2);
+    yc2 = midY(rect2);
+
+    printf("%d %d %d %d \n",xc1,yc1,xc2,yc2);
+
+    // _gCanvas[xc2 + (yc2 * _gDungeonWidth)] = de_rock;
+
+}
+
+
+void connectRoomToSibling(frame *startFrame)
+{
+
+    rect *rect1 = NULL;
+    rect *rect2 = NULL;
+
+    frame *parent = NULL;
+    frame *otherFrame = NULL;
+
+    rect1 = &(startFrame->roomRect);
+    parent = startFrame->parent;
+
+    if (parent->subframe1 == startFrame)
+    {
+        otherFrame = parent->subframe2;
+    }
+    else
+    {
+        otherFrame = parent->subframe1;
+    }
+
+    if (isLeaf(otherFrame)) {
+        rect2 = &(otherFrame->roomRect);
+    } else {
+        rect2 = &(otherFrame->frameRect);
+    }
+
+    connectRects(rect1,rect2);
+}
+
+void createHallwaysBetweenRooms(frame *startFrame)
+{
+
+    if (isLeaf(startFrame))
+    {
+        connectRoomToSibling(startFrame);
+    }
+    else
+    {
+        createHallwaysBetweenRooms(startFrame->subframe1);
+        createHallwaysBetweenRooms(startFrame->subframe2);
+    }
+}
+
+void createHallways(frame *startFrame)
+{
+    createHallwaysBetweenRooms(startFrame);
+    cgetc();
 }
 
 dungeonDescriptor *createDungeon(byte width,
@@ -299,12 +348,13 @@ dungeonDescriptor *createDungeon(byte width,
         exit(kErrNoRoomForDungeon);
     }
 
+    bzero(ddesc->canvas, width * height * sizeof(dungeonElement));
+
     _gDungeonHeight = height;
     _gDungeonWidth = width;
     _gMinRooms = minRoomCount;
     _gMinRoomSize = minRoomSize;
-
-    bzero(ddesc->canvas, width * height * sizeof(dungeonElement));
+    _gCanvas = ddesc->canvas;
 
     /*
             min size for frame is
@@ -334,8 +384,8 @@ dungeonDescriptor *createDungeon(byte width,
     ddesc->surfaceCount = surfaceSize;
 
     // fill in room list
-    instantiateRooms(startFrame, ddesc);
-    connectRooms(startFrame,ddesc);
+    instantiateRooms(startFrame);
+    createHallways(startFrame);
     deallocFrames(startFrame);
 
     return ddesc;
