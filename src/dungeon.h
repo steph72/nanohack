@@ -2,14 +2,6 @@ extern const int kErrNoRoomForDungeon;
 
 typedef unsigned char byte;
 
-typedef enum
-{
-    de_nothing,
-    de_floor,
-    de_wall,
-    de_rock
-} dungeonElement;
-
 typedef struct _room
 {
     byte x0, y0, x1, y1;
@@ -21,7 +13,7 @@ typedef struct
     byte height;
     int numRooms;
     int surfaceCount;
-    dungeonElement *canvas;
+    byte *canvas;
 } dungeonDescriptor;
 
 dungeonDescriptor *createDungeon(byte width,

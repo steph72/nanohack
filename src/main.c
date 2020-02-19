@@ -18,11 +18,11 @@ const int minRoomSize = 2;
 const int minDungeonSurface = 150;
 #endif
 
-const char signs[] = {' ', '.', '#', 'X'};
+const char signs[] = {' ', '.', '#', 'X', '*'};
 
 void dumpDungeon(dungeonDescriptor *desc)
 {
-    dungeonElement *canvas;
+    byte *canvas;
     byte width;
     byte height;
     register byte x, y;
@@ -35,7 +35,7 @@ void dumpDungeon(dungeonDescriptor *desc)
     {
         for (y = 0; y < height; ++y)
         {
-            cputcxy(x, y, signs[canvas[x + (width * y)]]);
+            cputcxy(x, y, canvas[x + (width * y)]);
         }
     }
 }
@@ -74,6 +74,7 @@ void main()
         deallocDungeon(aDungeon);
         cputc(' ');
         cputhex16(debugMem());
+        cgetc();
 
     } while (1);
 }
