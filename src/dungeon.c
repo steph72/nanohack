@@ -20,6 +20,9 @@ const int kErrNoRoomForDungeon = 0x10;
 #define TMP_DE_FLOOR '.'
 #define TMP_DE_HALLWAY 'd'
 
+// #define putCanvas(x,y,elem)     _gCanvas[x + (y * _gDungeonWidth)] = elem
+// #define getCanvas(x,y)          _gCanvas[x + (y * _gDungeonWidth)]
+
 int _gDungeonWidth;
 int _gDungeonHeight;
 int _gMinRooms;
@@ -42,12 +45,29 @@ typedef struct _frame
     rect frameRect;
     rect roomRect;
     direction splitDir;
-    byte hasConnectedChildren;
+    byte isConnectedToSibling;
     struct _frame *parent;
     struct _frame *subframe1;
     struct _frame *subframe2;
     // room *frameRoom;
 } frame;
+
+void putCanvas(byte x, byte y, byte elem)
+{
+    if (x > _gDungeonWidth || y > _gDungeonHeight)
+    {
+        cputhex16(x);
+        cputc(' ');
+        cputhex16(y);
+        return;
+    }
+    _gCanvas[x + (y * _gDungeonWidth)] = elem;
+}
+
+byte getCanvas(byte x, byte y)
+{
+    return _gCanvas[x + (y * _gDungeonWidth)];
+}
 
 frame *newFrame(byte x0, byte y0, byte x1, byte y1)
 {
@@ -57,7 +77,7 @@ frame *newFrame(byte x0, byte y0, byte x1, byte y1)
     aFrame->frameRect.y0 = y0;
     aFrame->frameRect.x1 = x1;
     aFrame->frameRect.y1 = y1;
-    aFrame->hasConnectedChildren = 0;
+    aFrame->isConnectedToSibling = 0;
     aFrame->subframe1 = NULL;
     aFrame->subframe2 = NULL;
     aFrame->parent = NULL;
@@ -190,7 +210,7 @@ int createRoomForFrame(frame *aFrame)
         y0 = y0 + ((roomHeight - randomSize) / 2);
         y1 = y0 + randomSize;
     }
-    
+
     aFrame->roomRect.x0 = x0;
     aFrame->roomRect.x1 = x1;
     aFrame->roomRect.y0 = y0;
@@ -282,9 +302,6 @@ void connectRects(rect *rect1, rect *rect2)
     int xdiff, ydiff;
     int xstep, ystep;
 
-    byte correctedY;
-    byte correctedX;
-
     floorElement = TMP_DE_HALLWAY;
 
     xc1 = midX(rect1);
@@ -333,17 +350,17 @@ void connectRects(rect *rect1, rect *rect2)
         {
             if (isPointInRect(x, y, rect1))
             {
-                _gCanvas[x + (y * _gDungeonWidth)] = floorElement;
+                putCanvas(x, y, floorElement);
             }
             else
             {
                 while (y != yc2)
                 {
-                    _gCanvas[x + (y * _gDungeonWidth)] = floorElement;
+                    putCanvas(x, y, floorElement);
                     y += ystep;
                 }
 
-                _gCanvas[x + (y * _gDungeonWidth)] = floorElement;
+                putCanvas(x, y, floorElement);
             }
         }
     }
@@ -354,17 +371,16 @@ void connectRects(rect *rect1, rect *rect2)
         {
             if (isPointInRect(x, y, rect1))
             {
-                _gCanvas[x + (y * _gDungeonWidth)] = floorElement;
+                putCanvas(x, y, floorElement);
             }
             else
             {
                 while (x != xc2)
                 {
-                    _gCanvas[x + (y * _gDungeonWidth)] = floorElement;
+                    putCanvas(x, y, floorElement);
                     x += xstep;
                 }
-
-                _gCanvas[xc1 + (y * _gDungeonWidth)] = floorElement;
+                putCanvas(x, y, floorElement);
             }
         }
     }
@@ -372,6 +388,7 @@ void connectRects(rect *rect1, rect *rect2)
     // _gCanvas[xc1 + (yc1 * _gDungeonWidth)] = de_rock;
 
     // printf("\n%d %d %d %d - xs%d ys%d xd%d yd%d", xc1, yc1, xc2, yc2, xstep, ystep, xdiff, ydiff);
+    // cgetc();
 }
 
 void connectRoomToSibling(frame *startFrame)
@@ -383,7 +400,7 @@ void connectRoomToSibling(frame *startFrame)
     frame *parent = NULL;
     frame *otherFrame = NULL;
 
-    if (startFrame->hasConnectedChildren)
+    if (startFrame->isConnectedToSibling)
     {
         return;
     }
@@ -411,8 +428,8 @@ void connectRoomToSibling(frame *startFrame)
 
     connectRects(rect1, rect2);
 
-    startFrame->hasConnectedChildren = true;
-    otherFrame->hasConnectedChildren = true;
+    startFrame->isConnectedToSibling = true;
+    otherFrame->isConnectedToSibling = true;
 }
 
 void createHallwaysBetweenRooms(frame *startFrame)
@@ -429,9 +446,29 @@ void createHallwaysBetweenRooms(frame *startFrame)
     }
 }
 
+void createOtherHallways(frame *startFrame)
+{
+
+    if (isLeaf(startFrame))
+    {
+        return;
+    }
+
+    if (!(startFrame->subframe1->isConnectedToSibling))
+    {
+        connectRects(&startFrame->subframe1->frameRect, &startFrame->subframe2->frameRect);
+        startFrame->subframe1->isConnectedToSibling = true;
+        startFrame->subframe2->isConnectedToSibling = true;
+    }
+
+    createOtherHallways(startFrame->subframe1);
+    createOtherHallways(startFrame->subframe2);
+}
+
 void createHallways(frame *startFrame)
 {
     createHallwaysBetweenRooms(startFrame);
+    createOtherHallways(startFrame);
 }
 
 void postprocessDungeon(void)
@@ -443,19 +480,19 @@ void postprocessDungeon(void)
     {
         for (y = 1; y < _gDungeonHeight - 1; ++y)
         {
-            if (_gCanvas[x + (y * _gDungeonWidth)] == TMP_DE_HALLWAY)
+            if (getCanvas(x, y) == TMP_DE_HALLWAY)
             {
                 for (xd = -1; xd <= 1; ++xd)
                 {
                     for (yd = -1; yd <= 1; ++yd)
                     {
-                        if (_gCanvas[(x + xd) + ((y + yd) * _gDungeonWidth)] == TMP_DE_NOTHING)
+                        if (getCanvas(x + xd, y + yd) == TMP_DE_NOTHING)
                         {
-                            _gCanvas[(x + xd) + ((y + yd) * _gDungeonWidth)] = TMP_DE_WALL;
+                            putCanvas(x + xd, y + yd, TMP_DE_WALL);
                         }
                     }
                 }
-                _gCanvas[x + (y  * _gDungeonWidth)] = TMP_DE_FLOOR;
+                putCanvas(x, y, TMP_DE_FLOOR);
             }
         }
     }
@@ -475,6 +512,7 @@ dungeonDescriptor *createDungeon(byte width,
 
     // create dungeon structure and canvas array
     dungeonDescriptor *ddesc = (dungeonDescriptor *)malloc(sizeof(dungeonDescriptor));
+
     ddesc->width = width;
     ddesc->height = height;
     ddesc->canvas = (byte *)malloc(width * height);

@@ -57,8 +57,11 @@ void main()
     textcolor(0x55);
     bgcolor(0);
     bordercolor(0x15);
+    srand(50);
     do
     {
+        gotoxy(0,0);
+        cputs("creating dungeon... ");
         aDungeon = createDungeon(xDungeonSize,
                                  yDungeonSize,
                                  minDungeonRoomCount,
