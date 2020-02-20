@@ -9,13 +9,11 @@ const int xDungeonSize = 80;
 const int yDungeonSize = 58;
 const int minDungeonRoomCount = 10;
 const int minRoomSize = 2;
-const int minDungeonSurface = 100;
 #else
 const int xDungeonSize = 40;
 const int yDungeonSize = 24;
-const int minDungeonRoomCount = 8;
+const int minDungeonRoomCount = 0;
 const int minRoomSize = 2;
-const int minDungeonSurface = 5;
 #endif
 
 const char signs[] = {' ', '.', '#', 'X', '*'};
@@ -31,6 +29,7 @@ void dumpDungeon(dungeonDescriptor *desc)
     width = desc->width;
     height = desc->height;
 
+    clrscr();
     for (x = 0; x < width; ++x)
     {
         for (y = 0; y < height; ++y)
@@ -63,17 +62,14 @@ void main()
         clrscr();
         aDungeon = createDungeon(xDungeonSize,
                                  yDungeonSize,
-                                 (xDungeonSize*yDungeonSize)/120,
-                                 // minDungeonRoomCount,
-                                 minRoomSize,
-                                 minDungeonSurface);
+                                 minDungeonRoomCount,
+                                 minRoomSize);
         dumpDungeon(aDungeon);
         gotoxy(0, 24);
         cputhex16(debugMem());
         cputc(' ');
         cputhex8(aDungeon->numRooms);
         cputc(' ');
-        cputhex16(aDungeon->surfaceCount);
         deallocDungeon(aDungeon);
         cputc(' ');
         cputhex16(debugMem());

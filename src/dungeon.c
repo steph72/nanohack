@@ -12,6 +12,8 @@
 const int kErrNoRoomForDungeon = 0x10;
 
 #define MAXTRIES 64
+#define CROOM_FACTOR 110
+
 #define true 1
 #define false 0
 
@@ -173,14 +175,12 @@ frame *createFrames(byte width, byte height, byte minFrameCount, byte minFrameSi
     return startFrame;
 }
 
-
-int createRoomForFrame(frame *aFrame)
+void createRoomForFrame(frame *aFrame)
 {
     byte roomWidth;
     byte roomHeight;
     byte randomSize;
     byte x0, y0, x1, y1;
-    int numSpaces = 0;
 
     x0 = aFrame->frameRect.x0;
     y0 = aFrame->frameRect.y0;
@@ -216,9 +216,6 @@ int createRoomForFrame(frame *aFrame)
 
     roomWidth = x1 - x0 - 2;
     roomHeight = y1 - y0 - 2;
-    numSpaces = (roomWidth * roomHeight);
-
-    return numSpaces;
 }
 
 void instantiateRoomInDungeon(frame *aFrame)
@@ -281,20 +278,17 @@ void instantiateRooms(frame *startFrame)
     }
 }
 
-int createRooms(frame *startFrame)
+void createRooms(frame *startFrame)
 {
-    int numSpaces = 0;
-
     if (isLeaf(startFrame))
     {
-        numSpaces += createRoomForFrame(startFrame);
+        createRoomForFrame(startFrame);
     }
     else
     {
-        numSpaces += createRooms(startFrame->subframe1);
-        numSpaces += createRooms(startFrame->subframe2);
+        createRooms(startFrame->subframe1);
+        createRooms(startFrame->subframe2);
     }
-    return numSpaces;
 }
 
 byte midX(rect *aRect)
@@ -553,17 +547,29 @@ void postprocessDungeon(void)
 dungeonDescriptor *createDungeon(byte width,
                                  byte height,
                                  byte minRoomCount,
-                                 byte minRoomSize,
-                                 byte minSurfaceSize)
+                                 byte minRoomSize)
 {
-    int surfaceSize;
-    unsigned int tries;
-    byte currentRoomIdx = 0;
 
+    byte currentRoomIdx = 0;
     frame *startFrame = NULL;
 
     // create dungeon structure and canvas array
     dungeonDescriptor *ddesc = (dungeonDescriptor *)malloc(sizeof(dungeonDescriptor));
+
+    if (minRoomSize<1) {
+        minRoomSize=2;
+    }
+
+    if (!minRoomCount)
+    {
+        minRoomCount = (width * height) / CROOM_FACTOR;
+        // minRoomCount /= (minRoomSize-1);
+#ifdef DDEBUG
+        cputs("calculated min room count: ");
+        cputhex8(minRoomCount);
+        cputs("\r\n");
+#endif
+    }
 
     ddesc->width = width;
     ddesc->height = height;
@@ -589,32 +595,22 @@ dungeonDescriptor *createDungeon(byte width,
               + 1 space for room between walls
         */
 
-    do
-    {
-        tries = 0;
 #ifdef DDEBUG
-        gotoxy(0, wherey());
-        cputs("pass 1.1: create frames\r\n");
+    gotoxy(0, wherey());
+    cputs("pass 1.1: create frames\r\n");
 #endif
-        deallocFrames(startFrame);
-        startFrame = createFrames(width,
-                                  height,
-                                  minRoomCount,
-                                  minRoomSize + 3);
-        do
-        {
+    deallocFrames(startFrame);
+    startFrame = createFrames(width,
+                              height,
+                              minRoomCount,
+                              minRoomSize + 3);
 #ifdef DDEBUG
-            gotoxy(0, wherey());
-            cputs("pass 1.2: create rooms, try ");
-            cputhex8(tries);
+    gotoxy(0, wherey());
+    cputs("pass 1.2: create rooms");
 #endif
-            surfaceSize = createRooms(startFrame);
-            ++tries;
-        } while (surfaceSize < minSurfaceSize && tries < MAXTRIES);
-    } while (tries >= MAXTRIES);
+    createRooms(startFrame);
 
     ddesc->numRooms = countLeafFrames(startFrame);
-    ddesc->surfaceCount = surfaceSize;
 
 #ifdef DDEBUG
     cputs("\r\npass 2: instantiating rooms\r\n");
