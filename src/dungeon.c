@@ -19,6 +19,13 @@ const int kErrNoRoomForDungeon = 0x10;
 #define TMP_DE_WALL '#'
 #define TMP_DE_FLOOR '.'
 #define TMP_DE_HALLWAY 'd'
+#define TMP_DE_DOOR '+'
+
+#define TMP_DE_WALL1 '1'
+#define TMP_DE_WALL2 '2'
+#define TMP_DE_WALL3 '3'
+#define TMP_DE_WALL4 '4'
+
 
 // #define putCanvas(x,y,elem)     _gCanvas[x + (y * _gDungeonWidth)] = elem
 // #define getCanvas(x,y)          _gCanvas[x + (y * _gDungeonWidth)]
@@ -199,6 +206,22 @@ int createRoomForFrame(frame *aFrame)
 
     if (roomWidth > (_gMinRoomSize + 2))
     {
+        randomSize = rand() % (roomWidth - _gMinRoomSize);
+        x0 += randomSize / 2;
+        x1 -= randomSize / 2;
+    }
+
+    if (roomHeight > (_gMinRoomSize + 2))
+    {
+        randomSize = rand() % (roomHeight - _gMinRoomSize);
+        y0 += randomSize / 2;
+        y1 -= randomSize / 2;
+    }
+
+    /*
+
+    if (roomWidth > (_gMinRoomSize + 2))
+    {
         randomSize = _gMinRoomSize + 1 + (rand() % (roomWidth - _gMinRoomSize));
         x0 = x0 + ((roomWidth - randomSize) / 2);
         x1 = x0 + randomSize;
@@ -210,6 +233,8 @@ int createRoomForFrame(frame *aFrame)
         y0 = y0 + ((roomHeight - randomSize) / 2);
         y1 = y0 + randomSize;
     }
+
+    */
 
     aFrame->roomRect.x0 = x0;
     aFrame->roomRect.x1 = x1;
@@ -239,7 +264,7 @@ void instantiateRoomInDungeon(frame *aFrame)
         for (y = y0; y <= y1; ++y)
         {
             _gCanvas[x + (y * _gDungeonWidth)] =
-                ((x == x0 || x == x1 || y == y0 || y == y1)) ? TMP_DE_WALL : TMP_DE_FLOOR;
+                ((x == x0 || x == x1 || y == y0 || y == y1)) ? TMP_DE_RWALL : TMP_DE_FLOOR;
         }
     }
 }
@@ -371,6 +396,7 @@ void connectRects(rect *rect1, rect *rect2)
         {
             if (isPointInRect(x, y, rect1))
             {
+
                 putCanvas(x, y, floorElement);
             }
             else
@@ -482,6 +508,7 @@ void postprocessDungeon(void)
         {
             if (getCanvas(x, y) == TMP_DE_HALLWAY)
             {
+
                 for (xd = -1; xd <= 1; ++xd)
                 {
                     for (yd = -1; yd <= 1; ++yd)

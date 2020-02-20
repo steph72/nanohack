@@ -57,7 +57,7 @@ void main()
     textcolor(0x55);
     bgcolor(0);
     bordercolor(0x15);
-    srand(50);
+    srand(501);
     do
     {
         gotoxy(0,0);
