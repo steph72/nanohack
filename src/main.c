@@ -13,9 +13,9 @@ const int minDungeonSurface = 100;
 #else
 const int xDungeonSize = 40;
 const int yDungeonSize = 24;
-const int minDungeonRoomCount = 9;
+const int minDungeonRoomCount = 8;
 const int minRoomSize = 2;
-const int minDungeonSurface = 150;
+const int minDungeonSurface = 5;
 #endif
 
 const char signs[] = {' ', '.', '#', 'X', '*'};
@@ -60,11 +60,11 @@ void main()
     srand(501);
     do
     {
-        gotoxy(0,0);
-        cputs("creating dungeon... ");
+        clrscr();
         aDungeon = createDungeon(xDungeonSize,
                                  yDungeonSize,
-                                 minDungeonRoomCount,
+                                 (xDungeonSize*yDungeonSize)/120,
+                                 // minDungeonRoomCount,
                                  minRoomSize,
                                  minDungeonSurface);
         dumpDungeon(aDungeon);

@@ -7,7 +7,7 @@
 
 #include "dungeon.h"
 
-// 5828
+#define DDEBUG
 
 const int kErrNoRoomForDungeon = 0x10;
 
@@ -26,7 +26,6 @@ const int kErrNoRoomForDungeon = 0x10;
 #define TMP_DE_WALL3 '3'
 #define TMP_DE_WALL4 '4'
 
-
 // #define putCanvas(x,y,elem)     _gCanvas[x + (y * _gDungeonWidth)] = elem
 // #define getCanvas(x,y)          _gCanvas[x + (y * _gDungeonWidth)]
 
@@ -36,13 +35,13 @@ int _gMinRooms;
 int _gMinRoomSize;
 byte *_gCanvas;
 
-typedef enum
+typedef enum _dir
 {
     dir_horizontal,
     dir_vertical
 } direction;
 
-typedef struct
+typedef struct _rect
 {
     byte x0, y0, x1, y1;
 } rect;
@@ -61,13 +60,6 @@ typedef struct _frame
 
 void putCanvas(byte x, byte y, byte elem)
 {
-    if (x > _gDungeonWidth || y > _gDungeonHeight)
-    {
-        cputhex16(x);
-        cputc(' ');
-        cputhex16(y);
-        return;
-    }
     _gCanvas[x + (y * _gDungeonWidth)] = elem;
 }
 
@@ -181,8 +173,7 @@ frame *createFrames(byte width, byte height, byte minFrameCount, byte minFrameSi
     return startFrame;
 }
 
-// create room for a given frame
-// returns number of floor spaces created
+
 int createRoomForFrame(frame *aFrame)
 {
     byte roomWidth;
@@ -218,24 +209,6 @@ int createRoomForFrame(frame *aFrame)
         y1 -= randomSize / 2;
     }
 
-    /*
-
-    if (roomWidth > (_gMinRoomSize + 2))
-    {
-        randomSize = _gMinRoomSize + 1 + (rand() % (roomWidth - _gMinRoomSize));
-        x0 = x0 + ((roomWidth - randomSize) / 2);
-        x1 = x0 + randomSize;
-    }
-
-    if (roomHeight > (_gMinRoomSize + 2))
-    {
-        randomSize = _gMinRoomSize + 1 + (rand() % (roomHeight - _gMinRoomSize));
-        y0 = y0 + ((roomHeight - randomSize) / 2);
-        y1 = y0 + randomSize;
-    }
-
-    */
-
     aFrame->roomRect.x0 = x0;
     aFrame->roomRect.x1 = x1;
     aFrame->roomRect.y0 = y0;
@@ -263,8 +236,30 @@ void instantiateRoomInDungeon(frame *aFrame)
     {
         for (y = y0; y <= y1; ++y)
         {
-            _gCanvas[x + (y * _gDungeonWidth)] =
-                ((x == x0 || x == x1 || y == y0 || y == y1)) ? TMP_DE_RWALL : TMP_DE_FLOOR;
+
+            if (x == x0)
+            {
+                putCanvas(x, y, TMP_DE_WALL1);
+            }
+            else if (x == x1)
+            {
+                putCanvas(x, y, TMP_DE_WALL2);
+            }
+            else if (y == y0)
+            {
+                putCanvas(x, y, TMP_DE_WALL3);
+            }
+            else if (y == y1)
+            {
+                putCanvas(x, y, TMP_DE_WALL4);
+            }
+            else
+            {
+                putCanvas(x, y, TMP_DE_FLOOR);
+            }
+
+            //_gCanvas[x + (y * _gDungeonWidth)] =
+            //    ((x == x0 || x == x1 || y == y0 || y == y1)) ? TMP_DE_RWALL : TMP_DE_FLOOR;
         }
     }
 }
@@ -497,6 +492,14 @@ void createHallways(frame *startFrame)
     createOtherHallways(startFrame);
 }
 
+char roomWallAt(byte x, byte y)
+{
+    byte elem;
+    elem = _gCanvas[x + (_gDungeonWidth * y)];
+
+    return (elem >= TMP_DE_WALL1 && elem <= TMP_DE_WALL4) ? elem : 0;
+}
+
 void postprocessDungeon(void)
 {
     register byte x, y;
@@ -506,20 +509,42 @@ void postprocessDungeon(void)
     {
         for (y = 1; y < _gDungeonHeight - 1; ++y)
         {
-            if (getCanvas(x, y) == TMP_DE_HALLWAY)
+            if (_gCanvas[x + (_gDungeonWidth * y)] == TMP_DE_HALLWAY)
             {
 
-                for (xd = -1; xd <= 1; ++xd)
+                if (roomWallAt(x - 1, y) && (roomWallAt(x - 1, y) == roomWallAt(x + 1, y)))
                 {
-                    for (yd = -1; yd <= 1; ++yd)
+                    putCanvas(x, y, TMP_DE_DOOR);
+                }
+                else if (roomWallAt(x, y - 1) && (roomWallAt(x, y - 1) == roomWallAt(x, y + 1)))
+                {
+                    putCanvas(x, y, TMP_DE_DOOR);
+                }
+                else
+                {
+
+                    for (xd = -1; xd <= 1; ++xd)
                     {
-                        if (getCanvas(x + xd, y + yd) == TMP_DE_NOTHING)
+                        for (yd = -1; yd <= 1; ++yd)
                         {
-                            putCanvas(x + xd, y + yd, TMP_DE_WALL);
+                            if (getCanvas(x + xd, y + yd) == TMP_DE_NOTHING)
+                            {
+                                putCanvas(x + xd, y + yd, TMP_DE_WALL);
+                            }
                         }
                     }
+                    putCanvas(x, y, TMP_DE_FLOOR);
                 }
-                putCanvas(x, y, TMP_DE_FLOOR);
+            }
+        }
+    }
+    for (x = 0; x < _gDungeonWidth; ++x)
+    {
+        for (y = 0; y < _gDungeonHeight; ++y)
+        {
+            if (roomWallAt(x, y))
+            {
+                putCanvas(x, y, TMP_DE_WALL);
             }
         }
     }
@@ -567,6 +592,10 @@ dungeonDescriptor *createDungeon(byte width,
     do
     {
         tries = 0;
+#ifdef DDEBUG
+        gotoxy(0, wherey());
+        cputs("pass 1.1: create frames\r\n");
+#endif
         deallocFrames(startFrame);
         startFrame = createFrames(width,
                                   height,
@@ -574,19 +603,32 @@ dungeonDescriptor *createDungeon(byte width,
                                   minRoomSize + 3);
         do
         {
+#ifdef DDEBUG
+            gotoxy(0, wherey());
+            cputs("pass 1.2: create rooms, try ");
+            cputhex8(tries);
+#endif
             surfaceSize = createRooms(startFrame);
             ++tries;
-            gotoxy(0, 0);
-            cputhex16(tries);
         } while (surfaceSize < minSurfaceSize && tries < MAXTRIES);
     } while (tries >= MAXTRIES);
 
     ddesc->numRooms = countLeafFrames(startFrame);
     ddesc->surfaceCount = surfaceSize;
 
-    // fill in room list
+#ifdef DDEBUG
+    cputs("\r\npass 2: instantiating rooms\r\n");
+#endif
     instantiateRooms(startFrame);
+
+#ifdef DDEBUG
+    cputs("pass 3: creating hallways\r\n");
+#endif
     createHallways(startFrame);
+
+#ifdef DDEBUG
+    cputs("pass 4: postprocess dungeon ");
+#endif
     postprocessDungeon();
     deallocFrames(startFrame);
 
