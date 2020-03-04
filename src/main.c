@@ -56,7 +56,7 @@ void main()
     textcolor(0x55);
     bgcolor(0);
     bordercolor(0x15);
-    srand(501);
+    srand(591);
     do
     {
         clrscr();
@@ -65,14 +65,8 @@ void main()
                                  minDungeonRoomCount,
                                  minRoomSize);
         dumpDungeon(aDungeon);
-        gotoxy(0, 24);
-        cputhex16(debugMem());
-        cputc(' ');
-        cputhex8(aDungeon->numRooms);
-        cputc(' ');
-        deallocDungeon(aDungeon);
-        cputc(' ');
-        cputhex16(debugMem());
+        gotoxy(0, 0);
+        cputs("press any key for new dungeon");
         cgetc();
 
     } while (1);
